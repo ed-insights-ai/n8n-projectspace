@@ -1,0 +1,37 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.sql
+*.backup
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Docker volumes (if stored locally)
+volumes/
+
+# n8n specific - ignore user workflows but keep examples
+n8n-workflows/*
+!n8n-workflows/hello-world-*.json
+n8n-backup/

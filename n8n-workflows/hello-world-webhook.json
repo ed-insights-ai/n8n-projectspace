@@ -1,0 +1,127 @@
+{
+  "name": "Hello World - Webhook API",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hello-world",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-5678-9abc-def0-123456789abc",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        320
+      ],
+      "webhookId": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "greeting",
+              "value": "=Hello {{ $json.query.name || 'World' }}!"
+            },
+            {
+              "name": "method",
+              "value": "={{ $json.method }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "name": "headers",
+              "value": "={{ JSON.stringify($json.headers) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-6789-abcd-ef01-23456789abcd",
+      "name": "Process Request",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "c3d4e5f6-789a-bcde-f012-3456789abcde",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        680,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Webhook API Example\n\nThis workflow creates a simple REST API endpoint.\n\n**Test it:**\n1. Activate this workflow\n2. Visit: http://localhost:5678/webhook/hello-world\n3. Try with name: http://localhost:5678/webhook/hello-world?name=YourName\n\nThe webhook will respond with:\n- A personalized greeting\n- Request method\n- Current timestamp\n- Request headers",
+        "height": 260,
+        "width": 500
+      },
+      "id": "d4e5f6a7-89ab-cdef-0123-456789abcdef",
+      "name": "Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        80
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Request": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e",
+  "id": "2",
+  "meta": {
+    "instanceId": "8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f"
+  },
+  "tags": [
+    {
+      "id": "1",
+      "name": "example"
+    },
+    {
+      "id": "2",
+      "name": "api"
+    }
+  ]
+}
