@@ -33,5 +33,5 @@ volumes/
 
 # n8n specific - ignore user workflows but keep examples
 n8n-workflows/*
-!n8n-workflows/hello-world-*.json
+!n8n-workflows/soccer.json
 n8n-backup/

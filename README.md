@@ -1,6 +1,6 @@
 # n8n Workflow Automation Platform
 
-This project provides an easy-to-use Docker Compose setup for running n8n, an extendable workflow automation tool. It includes PostgreSQL for data persistence and two sample "Hello World" workflows to get you started.
+This project provides an easy-to-use Docker Compose setup for running n8n, an extendable workflow automation tool. It includes PostgreSQL for data persistence and custom workflows for soccer-related automation.
 
 ## Prerequisites
 
@@ -50,40 +50,23 @@ When you first access n8n:
 - **URL:** http://localhost:5678
 - Use the email and password you created during setup
 
-### Import Sample Workflows
+### Import Workflows
 
 After logging in:
 1. Go to Workflows → Import from File
-2. Import the sample workflows from the `n8n-workflows` directory
+2. Import the workflows from the `n8n-workflows` directory
 
-## Sample Workflows Included
+## Workflows Included
 
-### 1. Hello World - Basic
-A simple workflow that demonstrates:
-- Manual trigger
-- Setting variables
-- Basic data manipulation
-- Displaying results
+### 1. Soccer Workflow
+Soccer-related automation workflow.
 
-**File:** `n8n-workflows/hello-world-basic.json`
+**File:** `n8n-workflows/soccer.json`
 
-### 2. Hello World - Webhook API
-A more advanced workflow that creates a REST API endpoint:
-- Webhook trigger
-- Processing HTTP requests
-- Dynamic responses based on query parameters
-- JSON response formatting
+### 2. Aitor Workflow
+Custom workflow for Aitor-related automation.
 
-**File:** `n8n-workflows/hello-world-webhook.json`
-
-**Test the webhook (after activating the workflow):**
-```bash
-# Basic request
-curl http://localhost:5678/webhook/hello-world
-
-# With name parameter
-curl http://localhost:5678/webhook/hello-world?name=YourName
-```
+**File:** `n8n-workflows/aitor.json`
 
 ## Services Overview
 
@@ -151,9 +134,9 @@ project1/
 ├── CLAUDE.md            # Instructions for Claude Code AI
 ├── setup.sh             # Auto-setup script for generating .env
 ├── Makefile             # Convenient commands for managing the project
-└── n8n-workflows/       # Sample workflow files
-    ├── hello-world-basic.json
-    └── hello-world-webhook.json
+└── n8n-workflows/       # Workflow files
+    ├── aitor.json
+    └── soccer.json
 ```
 
 ## Configuration

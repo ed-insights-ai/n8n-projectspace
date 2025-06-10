@@ -1,0 +1,578 @@
+{
+  "name": "Soccer Data Extraction - Improved",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 400],
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Configuration settings for the workflow\nconst config = {\n  baseUrl: 'https://hardingsports.com/sports/mens-soccer',\n  userAgent: 'Mozilla/5.0 (compatible; n8n-workflow/1.0)',\n  requestDelay: 2000,\n  maxRetries: 3,\n  timeout: 30000,\n  selectors: {\n    yearOptions: [\n      'select#roster_select option',\n      'select.yearselect option', \n      '.roster-season-select option',\n      '.sidearm-dropdown option'\n    ],\n    yearLinks: [\n      'a[href*=\"/roster/\"]',\n      '.season-links a',\n      '.year-navigation a'\n    ],\n    rosterRows: [\n      'tbody tr',\n      '.roster-card',\n      '.s-person-card'\n    ],\n    statsRows: [\n      '.sidearm-table tbody tr',\n      'table[id*=\"stats\"] tbody tr',\n      'table[id*=\"player\"] tbody tr',\n      'table[id*=\"individual\"] tbody tr', \n      '.statistics-table tbody tr',\n      '.stats-table tbody tr',\n      'table.sortable tbody tr',\n      '.table-striped tbody tr',\n      'tbody tr'\n    ]\n  },\n  yearPattern: /20\\d{2}(-\\d{2})?/g\n};\n\n// Utility functions\nfunction logStructured(level, message, data = {}) {\n  const logEntry = {\n    timestamp: new Date().toISOString(),\n    level: level,\n    message: message,\n    executionId: $execution.id || 'unknown',\n    nodeId: 'config',\n    data: data\n  };\n  console.log(JSON.stringify(logEntry));\n}\n\nlogStructured('info', 'Workflow configuration initialized', { config });\n\nreturn [{ json: { config } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "id": "config-node",
+      "name": "Configuration"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.config.baseUrl }}/roster",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "={{ $json.config.userAgent }}"
+            }
+          ]
+        },
+        "timeout": "={{ $json.config.timeout }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 400],
+      "id": "fetch-years-page",
+      "name": "Fetch Years Page"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-data",
+              "leftValue": "={{ !!$json.data }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [600, 400],
+      "id": "check-http-success",
+      "name": "HTTP Success?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simplified debugging - output debug info directly\nconst response = $input.all()[0].json;\nconst config = $('Configuration').item.json.config;\n\n// Return all debug info directly in the output\nreturn [{\n  json: {\n    error: true,\n    message: \"HTTP request failed - debug info below\",\n    \n    // Response debugging\n    response_statusCode: response.statusCode,\n    response_statusCodeType: typeof response.statusCode,\n    response_hasBody: !!response.body,\n    response_bodyLength: response.body ? response.body.length : 0,\n    response_hasHeaders: !!response.headers,\n    response_hasData: !!response.data,\n    response_dataLength: response.data ? response.data.length : 0,\n    response_allKeys: Object.keys(response),\n    \n    // Config debugging  \n    config_baseUrl: config.baseUrl,\n    config_userAgent: config.userAgent,\n    config_timeout: config.timeout,\n    \n    // Built URL\n    fullUrl: `${config.baseUrl}/roster`,\n    \n    // Error classification\n    errorType: (!response.statusCode && !response.body && !response.data) ? 'complete_failure' : 'format_issue',\n    \n    // Raw response preview\n    response_preview: JSON.stringify(response).substring(0, 500)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 600],
+      "id": "http-error-handler",
+      "name": "HTTP Error Handler"
+    },
+    {
+      "parameters": {
+        "dataPropertyName": "data",
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "yearOptions",
+              "cssSelector": "={{ $('Configuration').item.json.config.selectors.yearOptions.join(', ') }}",
+              "returnValue": "html",
+              "returnArray": true
+            },
+            {
+              "key": "yearLinks",
+              "cssSelector": "={{ $('Configuration').item.json.config.selectors.yearLinks.join(', ') }}",
+              "returnValue": "html",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [800, 400],
+      "id": "extract-years",
+      "name": "Extract Available Years"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced year parsing with better error handling\nconst input = $input.all()[0].json;\nconst config = $('Configuration').item.json.config;\nconst yearOptions = input.yearOptions || [];\nconst yearLinks = input.yearLinks || [];\n\nfunction logStructured(level, message, data = {}) {\n  const logEntry = {\n    timestamp: new Date().toISOString(),\n    level: level,\n    message: message,\n    executionId: $execution.id || 'unknown',\n    nodeId: 'parse-years',\n    data: data\n  };\n  console.log(JSON.stringify(logEntry));\n}\n\nfunction extractYearPatterns(text, pattern) {\n  const matches = text.match(pattern) || [];\n  return [...new Set(matches)];\n}\n\nfunction generateFallbackYears() {\n  // Focus on completed seasons that should have game statistics\n  // 2024 season may not be complete yet, so prioritize 2023 and 2022\n  return ['2023', '2022', '2024'];\n}\n\nlogStructured('info', 'Starting year extraction', {\n  yearOptionsCount: yearOptions.length,\n  yearLinksCount: yearLinks.length\n});\n\nconst years = new Set();\n\n// Extract from select options\nyearOptions.forEach(option => {\n  const matches = extractYearPatterns(option, config.yearPattern);\n  matches.forEach(year => years.add(year));\n  \n  // Also check for value attribute\n  const valueMatch = option.match(/value=\"([^\"]+)\"/);\n  if (valueMatch) {\n    const yearMatches = extractYearPatterns(valueMatch[1], config.yearPattern);\n    yearMatches.forEach(year => years.add(year));\n  }\n});\n\n// Extract from links\nyearLinks.forEach(link => {\n  const matches = extractYearPatterns(link, config.yearPattern);\n  matches.forEach(year => years.add(year));\n});\n\n// Use fallbacks if no years found\nif (years.size === 0) {\n  const fallbackYears = generateFallbackYears();\n  fallbackYears.forEach(year => years.add(year));\n  logStructured('warn', 'No years found in HTML, using fallback years', { fallbackYears });\n}\n\n// Create URL objects for each year\nconst yearItems = Array.from(years).map(year => ({\n  year: year,\n  rosterUrl: `${config.baseUrl}/roster/${year}`,\n  statsUrl: `${config.baseUrl}/stats/${year}`\n}));\n\n// Sort by year (newest first)\nyearItems.sort((a, b) => b.year.localeCompare(a.year));\n\nlogStructured('info', 'Year extraction completed', {\n  yearsFound: yearItems.length,\n  years: yearItems.map(y => y.year)\n});\n\nif (yearItems.length === 0) {\n  logStructured('error', 'No valid years found');\n  return [{ json: { error: true, message: 'No valid years found' } }];\n}\n\nreturn yearItems.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 400],
+      "id": "parse-years",
+      "name": "Parse Available Years"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1200, 400],
+      "id": "split-batches",
+      "name": "Split Into Batches"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Configuration').item.json.config.requestDelay / 1000 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1400, 400],
+      "id": "wait-delay",
+      "name": "Wait (Rate Limit)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.rosterUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "={{ $('Configuration').item.json.config.userAgent }}"
+            }
+          ]
+        },
+        "timeout": "={{ $('Configuration').item.json.config.timeout }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 300],
+      "id": "fetch-roster",
+      "name": "Fetch Roster Page"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.statsUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "={{ $('Configuration').item.json.config.userAgent }}"
+            }
+          ]
+        },
+        "timeout": "={{ $('Configuration').item.json.config.timeout }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 500],
+      "id": "fetch-stats",
+      "name": "Fetch Stats Page"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "roster-success",
+              "leftValue": "={{ !!$json.data }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1800, 300],
+      "id": "check-roster-success",
+      "name": "Roster Success?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "stats-success",
+              "leftValue": "={{ !!$json.data }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1800, 500],
+      "id": "check-stats-success",
+      "name": "Stats Success?"
+    },
+    {
+      "parameters": {
+        "dataPropertyName": "data",
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "rosterData",
+              "cssSelector": "={{ $('Configuration').item.json.config.selectors.rosterRows.join(', ') }}",
+              "returnValue": "html",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [2000, 300],
+      "id": "extract-roster-html",
+      "name": "Extract Roster HTML"
+    },
+    {
+      "parameters": {
+        "dataPropertyName": "data",
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "playerRows",
+              "cssSelector": "={{ $('Configuration').item.json.config.selectors.statsRows.join(', ') }}",
+              "returnValue": "html",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [2000, 500],
+      "id": "extract-stats-html",
+      "name": "Extract Stats HTML"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [2200, 400],
+      "id": "merge-data",
+      "name": "Merge Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "more-batches",
+              "leftValue": "={{ $('Split Into Batches').isCompleted }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2400, 400],
+      "id": "more-years",
+      "name": "More Years?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final data collection and CSV preparation\nconst allData = $input.all();\nconst config = $('Configuration').item.json.config;\n\nfunction logStructured(level, message, data = {}) {\n  const logEntry = {\n    timestamp: new Date().toISOString(),\n    level: level,\n    message: message,\n    executionId: $execution.id || 'unknown',\n    nodeId: 'collect-data',\n    data: data\n  };\n  console.log(JSON.stringify(logEntry));\n}\n\nfunction cleanCellContent(cell) {\n  if (!cell) return '';\n  \n  let content = cell.replace(/<\\/?td[^>]*>/gi, '');\n  \n  if (content.includes('<a')) {\n    const linkMatch = content.match(/>([^<]+)</);\n    content = linkMatch ? linkMatch[1] : content;\n  }\n  \n  content = content.replace(/<[^>]+>/g, '');\n  content = content.replace(/&nbsp;/g, ' ')\n                  .replace(/&amp;/g, '&')\n                  .replace(/&lt;/g, '<')\n                  .replace(/&gt;/g, '>')\n                  .replace(/&quot;/g, '\"')\n                  .replace(/\\s+/g, ' ')\n                  .trim();\n  \n  return content;\n}\n\nfunction isValidPlayerName(name) {\n  if (!name || typeof name !== 'string') return false;\n  \n  const trimmedName = name.trim();\n  if (trimmedName.length < 2 || !isNaN(Number(trimmedName))) return false;\n  \n  // Expanded list of invalid names and patterns\n  const invalidNames = [\n    'total', 'totals', '-', 'n/a', 'tbd', 'team', 'coach', 'assistant',\n    'shots', 'penalties', 'miscellaneous', 'points', 'goals', 'assists',\n    'shots on goal', 'saves', 'fouls', 'corner kicks', 'opponent', 'tm',\n    'harding', 'university'\n  ];\n  \n  const invalidPatterns = [\n    /^\\d{2}\\/\\d{2}\\/\\d{4}$/, // Date pattern\n    /^[A-Z\\s]+$/,           // All caps (likely headers)\n    /^\\d+-\\d+$/,            // Score pattern\n    /^[LWT]$/,              // Game result (Loss/Win/Tie)\n    /^\\(\\d+-\\d+-\\d+/,       // Record pattern\n    /^\\d+:\\d+$/             // Time pattern\n  ];\n  \n  if (invalidNames.includes(trimmedName.toLowerCase())) return false;\n  \n  for (const pattern of invalidPatterns) {\n    if (pattern.test(trimmedName)) return false;\n  }\n  \n  // Must contain at least one letter and one space (typical name format)\n  if (!/[a-zA-Z]/.test(trimmedName) || !/\\s/.test(trimmedName)) return false;\n  \n  return true;\n}\n\nlogStructured('info', 'Starting final data collection', {\n  totalItems: allData.length\n});\n\nconst processedData = [];\nlet rosterCount = 0;\nlet statsCount = 0;\nlet errorCount = 0;\n\nallData.forEach((item, index) => {\n  try {\n    const data = item.json;\n    \n    // Skip error items\n    if (data.error) {\n      errorCount++;\n      logStructured('warn', 'Skipping error item', { error: data.message });\n      return;\n    }\n    \n    // Process roster data if present\n    if (data.rosterData && Array.isArray(data.rosterData)) {\n      data.rosterData.forEach((rosterItem, rosterIndex) => {\n        if (!rosterItem || rosterItem.includes('Coach') || rosterItem.includes('Assistant')) {\n          return;\n        }\n        \n        if (rosterItem.includes('roster_jerseynum') || rosterItem.includes('td')) {\n          const player = {\n            section_type: 'roster',\n            season: $('Split Into Batches').item.json.year || data.year || 'unknown',\n            jersey_number: '',\n            name: '',\n            position: '',\n            height: '',\n            weight: '',\n            year_in_school: '',\n            hometown: ''\n          };\n          \n          // Extract data using improved parsing\n          const jerseyMatch = rosterItem.match(/>(\\d+)</);\n          if (jerseyMatch) player.jersey_number = jerseyMatch[1];\n          \n          const nameMatch = rosterItem.match(/<a[^>]*>([^<]+)<\\/a>/) || rosterItem.match(/>([A-Z][a-z]+ [A-Z][a-z]+)</);\n          if (nameMatch) player.name = nameMatch[1].trim();\n          \n          const posMatch = rosterItem.match(/(?:position|pos)[^>]*>([^<]+)</i) || rosterItem.match(/\\b(GK|DEF|MID|FWD|F|M|D|G)\\b/);\n          if (posMatch) player.position = posMatch[1].trim();\n          \n          const heightMatch = rosterItem.match(/height[^>]*data-sort=\"\\d+\">([^<]+)</) || rosterItem.match(/(\\d+'\\d+\")/) || rosterItem.match(/(\\d+\\.\\d+)/);\n          if (heightMatch) player.height = heightMatch[1].trim();\n          \n          const weightMatch = rosterItem.match(/weight[^>]*>(\\d+)</) || rosterItem.match(/(\\d+)\\s*lbs?/);\n          if (weightMatch) player.weight = weightMatch[1].trim();\n          \n          const yearMatch = rosterItem.match(/class[^>]*>([^<]+)</) || rosterItem.match(/\\b(Fr|So|Jr|Sr|Freshman|Sophomore|Junior|Senior)\\b/i);\n          if (yearMatch) player.year_in_school = yearMatch[1].trim();\n          \n          const hometownMatch = rosterItem.match(/hometown[^>]*>([^<]+)</) || rosterItem.match(/([A-Z][a-z]+,\\s*[A-Z]{2})/);\n          if (hometownMatch) player.hometown = hometownMatch[1].trim();\n          \n          if (isValidPlayerName(player.name)) {\n            processedData.push(player);\n            rosterCount++;\n          }\n        }\n      });\n    }\n    \n    // Process stats data if present\n    if (data.playerRows && Array.isArray(data.playerRows)) {\n      data.playerRows.forEach((row, rowIndex) => {\n        try {\n          if (typeof row !== 'string' || row.toLowerCase().includes('<th>')) {\n            return;\n          }\n          \n          const cells = row.match(/<td[^>]*>(.*?)<\\/td>/gi) || [];\n          const cleanedData = cells.map(cleanCellContent);\n          \n          if (cleanedData.length < 1) return;\n          \n          // Handle individual player statistics table format\n          // Expected columns: #, Player, GP, GS, MIN, G, A, PTS, SH, SH%, SOG, SOG%, YC-RC, GW, PG-PA\n          let playerName, jerseyNum;\n          \n          // Try different table formats\n          if (cleanedData.length >= 8) {\n            // Format 1: Jersey#, Player, GP, GS, MIN, G, A, PTS, ...\n            if (!isNaN(Number(cleanedData[0]))) {\n              jerseyNum = cleanedData[0];\n              playerName = cleanedData[1];\n            }\n            // Format 2: Player, Jersey#, GP, GS, ...\n            else {\n              playerName = cleanedData[0];\n              jerseyNum = !isNaN(Number(cleanedData[1])) ? cleanedData[1] : '';\n            }\n          } else {\n            // Fallback: assume first field is player name\n            playerName = cleanedData[0];\n            jerseyNum = cleanedData[1] || '';\n          }\n          \n          if (!isValidPlayerName(playerName)) return;\n          \n          // Map fields based on expected individual player stats table\n          const playerStats = {\n            section_type: 'stats',\n            season: $('Split Into Batches').item.json.year || data.year || 'unknown',\n            name: playerName,\n            jersey_number: jerseyNum,\n            GP: cleanedData[2] || '0',\n            GS: cleanedData[3] || '0',\n            MIN: cleanedData[4] || '0',\n            G: cleanedData[5] || '0',\n            A: cleanedData[6] || '0',\n            PTS: cleanedData[7] || '0',\n            SH: cleanedData[8] || '0',\n            SH_PCT: cleanedData[9] || '0',\n            SOG: cleanedData[10] || '0',\n            SOG_PCT: cleanedData[11] || '0',\n            YC_RC: cleanedData[12] || '0',\n            GW: cleanedData[13] || '0',\n            PG_PA: cleanedData[14] || '0'\n          };\n          \n          processedData.push(playerStats);\n          statsCount++;\n          \n        } catch (error) {\n          logStructured('error', 'Error parsing stats row', { error: error.message, rowIndex });\n        }\n      });\n    }\n    \n  } catch (error) {\n    errorCount++;\n    logStructured('error', 'Error processing item', { error: error.message, index });\n  }\n});\n\nlogStructured('info', 'Data collection completed', {\n  totalProcessed: processedData.length,\n  rosterEntries: rosterCount,\n  statsEntries: statsCount,\n  errors: errorCount\n});\n\n// Create CSV-ready format\nif (processedData.length > 0) {\n  const csvData = processedData.map(item => ({\n    section_type: item.section_type,\n    season: item.season,\n    name: item.name || '',\n    jersey_number: item.jersey_number || '',\n    position: item.position || '',\n    height: item.height || '',\n    weight: item.weight || '',\n    year_in_school: item.year_in_school || '',\n    hometown: item.hometown || '',\n    games_played: item.GP || '',\n    games_started: item.GS || '',\n    minutes: item.MIN || '',\n    goals: item.G || '',\n    assists: item.A || '',\n    points: item.PTS || '',\n    shots: item.SH || '',\n    shot_percentage: item.SH_PCT || '',\n    shots_on_goal: item.SOG || '',\n    sog_percentage: item.SOG_PCT || '',\n    yellow_red_cards: item.YC_RC || '',\n    game_winners: item.GW || '',\n    penalty_goals_attempts: item.PG_PA || ''\n  }));\n  \n  return csvData.map(row => ({ json: row }));\n} else {\n  logStructured('warn', 'No valid data found for CSV generation');\n  return [{\n    json: {\n      message: 'No valid player data found',\n      summary: {\n        totalItems: allData.length,\n        errors: errorCount,\n        rosterEntries: rosterCount,\n        statsEntries: statsCount\n      }\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 500],
+      "id": "collect-data",
+      "name": "Collect All Data"
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "soccer_data_{{ new Date().toISOString().split('T')[0] }}.csv"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [2800, 500],
+      "id": "create-csv",
+      "name": "Create CSV File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuration": {
+      "main": [
+        [
+          {
+            "node": "Fetch Years Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Years Page": {
+      "main": [
+        [
+          {
+            "node": "HTTP Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Success?": {
+      "main": [
+        [
+          {
+            "node": "Extract Available Years",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Available Years": {
+      "main": [
+        [
+          {
+            "node": "Parse Available Years",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Available Years": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "Collect All Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait (Rate Limit)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait (Rate Limit)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Roster Page",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Stats Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Roster Page": {
+      "main": [
+        [
+          {
+            "node": "Roster Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Stats Page": {
+      "main": [
+        [
+          {
+            "node": "Stats Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roster Success?": {
+      "main": [
+        [
+          {
+            "node": "Extract Roster HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stats Success?": {
+      "main": [
+        [
+          {
+            "node": "Extract Stats HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Roster HTML": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Stats HTML": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "More Years?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "More Years?": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect All Data": {
+      "main": [
+        [
+          {
+            "node": "Create CSV File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
