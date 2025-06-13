@@ -1,0 +1,205 @@
+{
+  "name": "Harding Soccer Stats Scraper",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "manual-trigger",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://static.hardingsports.com/custompages/msoc/2024/teamgbg.htm",
+        "responseFormat": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "id": "fetch-season-page",
+      "name": "HTTP Request - Season Page"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "playerLinks", 
+              "cssSelector": "a[href^=\"plyr_\"]",
+              "returnValue": "html",
+              "returnArray": true
+            },
+            {
+              "key": "fullHtml",
+              "cssSelector": "body",
+              "returnValue": "html"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [680, 300],
+      "id": "extract-roster-links",
+      "name": "HTML Extract - Roster Links"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse roster links and extract player info from the actual HTML\nconst input = $input.all()[0].json;\nconst items = input.playerLinks || [];\n\n// Debug: log what we received\nconsole.log('Input received - playerLinks count:', items.length);\nconsole.log('Input keys:', Object.keys(input));\n\n// Check if we got playerLinks from the HTML Extract node\nif (items.length > 0) {\n  console.log('Processing playerLinks from HTML Extract node');\n  const players = items.map(item => {\n    // item should be the HTML content of each <a> tag\n    const hrefMatch = item.match(/href=\"([^\"]+)\"/);\n    const textMatch = item.match(/>([^<]+)</);\n    \n    if (!hrefMatch || !textMatch) {\n      console.log('Could not parse link:', item);\n      return null;\n    }\n    \n    const href = hrefMatch[1];\n    const playerName = textMatch[1].trim();\n    \n    // Extract jersey number from the table structure\n    // Looking for patterns like \"# 21\" or \"#21\"\n    const jerseyMatch = playerName.match(/^#?\\s*(\\d+)\\s+(.+)/) || \n                       item.match(/>\\s*#\\s*(\\d+)\\s+</) ||\n                       href.match(/plyr_(\\d+)\\.htm/);\n    \n    let jersey = null;\n    let name = playerName;\n    \n    if (jerseyMatch) {\n      jersey = jerseyMatch[1];\n      if (jerseyMatch[2]) {\n        name = jerseyMatch[2].trim();\n      }\n    }\n    \n    return {\n      jersey: jersey,\n      name: name,\n      playerUrl: `https://static.hardingsports.com/custompages/msoc/2024/${href}`\n    };\n  }).filter(player => player !== null);\n  \n  console.log('Players extracted from playerLinks:', players.length);\n  if (players.length > 0) {\n    players.forEach(p => console.log(`Player: ${p.name} (#${p.jersey})`));\n    return players.map(player => ({ json: player }));\n  }\n}\n\n// Fallback: try to extract from fullHtml if playerLinks didn't work\nconst fullHtml = input.fullHtml || '';\nif (fullHtml) {\n  console.log('Fallback: extracting from fullHtml, length:', fullHtml.length);\n  \n  // Look for the Individual Game-by-Game section with player links\n  const linkMatches = fullHtml.match(/<a href=\"plyr_\\d+\\.htm\">[^<]+<\\/a>/gi) || [];\n  console.log('Direct regex matches found:', linkMatches.length);\n  \n  if (linkMatches.length > 0) {\n    const players = linkMatches.map(link => {\n      const hrefMatch = link.match(/href=\"(plyr_(\\d+)\\.htm)\"/);\n      const nameMatch = link.match(/>([^<]+)</);\n      \n      if (!hrefMatch || !nameMatch) {\n        return null;\n      }\n      \n      const href = hrefMatch[1];\n      const jersey = hrefMatch[2]; // Jersey number from filename\n      const name = nameMatch[1].trim();\n      \n      return {\n        jersey: jersey,\n        name: name,\n        playerUrl: `https://static.hardingsports.com/custompages/msoc/2024/${href}`\n      };\n    }).filter(player => player !== null);\n    \n    console.log('Players extracted from fullHtml:', players.length);\n    players.forEach(p => console.log(`Player: ${p.name} (#${p.jersey})`));\n    return players.map(player => ({ json: player }));\n  }\n}\n\n// If nothing worked, return debug info\nconsole.log('No players found, returning debug info');\nreturn [{\n  json: {\n    error: 'No player links found',\n    debug: {\n      inputKeys: Object.keys(input),\n      hasPlayerLinks: !!input.playerLinks,\n      playerLinksCount: items.length,\n      hasFullHtml: !!input.fullHtml,\n      fullHtmlLength: input.fullHtml ? input.fullHtml.length : 0,\n      samplePlayerLinks: items.slice(0, 3)\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "id": "parse-roster-data",
+      "name": "Function - Parse Roster"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.playerUrl }}",
+        "responseFormat": "string",
+        "options": {
+          "continueOnFail": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300],
+      "id": "fetch-player-page",
+      "name": "HTTP Request - Player Page"
+    },
+    {
+      "parameters": {
+        "dataPropertyName": "data",
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "pageContent",
+              "cssSelector": "body",
+              "returnValue": "text"
+            }
+          ]
+        },
+        "options": {
+          "keepOnlySet": false
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [1560, 300],
+      "id": "extract-player-stats",
+      "name": "HTML Extract - Player Stats"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop through all players and parse their game-by-game stats\nconst results = [];\n\nfor (const item of $input.all()) {\n  const pageContent = item.json.pageContent || '';\n  \n  // Extract jersey number and name from the pageContent itself\n  // Looking for pattern like: # 1 Inigo Chavarria or #21 Aitor Scholl\n  const playerInfoMatch = pageContent.match(/#\\s*(\\d+)\\s+([^\\n]+)/);\n  \n  let jersey = 'unknown';\n  let name = 'unknown';\n  \n  if (playerInfoMatch) {\n    jersey = playerInfoMatch[1].trim();\n    name = playerInfoMatch[2].trim();\n  }\n  \n  // Extract all game rows from the table\n  // Looking for date patterns like 09/05/24, 09/07/24, etc.\n  const gameRowPattern = /(\\d{2}\\/\\d{2}\\/\\d{2})\\s+([^\\n]+)/g;\n  const gameRows = [];\n  let match;\n  \n  while ((match = gameRowPattern.exec(pageContent)) !== null) {\n    gameRows.push(match[0]);\n  }\n  \n  if (gameRows.length === 0) {\n    // If no games found, return basic info\n    results.push({\n      json: {\n        jersey: jersey,\n        name: name,\n        date: '',\n        opponent: '',\n        score: '',\n        gp: '',\n        gs: '',\n        minutes: '',\n        ga: '',\n        gaaVg: '',\n        saves: '',\n        savePct: '',\n        w: '',\n        l: '',\n        t: '',\n        sho: '',\n        error: 'No games found'\n      }\n    });\n  } else {\n    // Parse each game row\n    gameRows.forEach(gameRow => {\n      // Split the row by multiple spaces to get individual columns\n      const parts = gameRow.split(/\\s{2,}/);\n      \n      if (parts.length >= 4) {\n        const gameData = {\n          jersey: jersey,\n          name: name,\n          date: parts[0] || '',\n          opponent: parts[1] || '',\n          score: parts[2] || '',\n          gp: parts[3] || '',\n          gs: parts[4] || '',\n          minutes: parts[5] || '',\n          ga: parts[6] || '',           // Goals Against\n          gaaVg: parts[7] || '',        // Goals Against Average\n          saves: parts[8] || '',\n          savePct: parts[9] || '',      // Save Percentage\n          w: parts[10] || '',           // Wins\n          l: parts[11] || '',           // Losses\n          t: parts[12] || '',           // Ties\n          sho: parts[13] || ''          // Shutouts\n        };\n        \n        results.push({ json: gameData });\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300],
+      "id": "parse-player-stats",
+      "name": "Function - Parse Stats"
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "harding_msoc_2024_stats.csv"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [2660, 400],
+      "id": "create-csv-file",
+      "name": "Create CSV File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Season Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Season Page": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract - Roster Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract - Roster Links": {
+      "main": [
+        [
+          {
+            "node": "Function - Parse Roster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function - Parse Roster": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Player Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Player Page": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract - Player Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract - Player Stats": {
+      "main": [
+        [
+          {
+            "node": "Function - Parse Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function - Parse Stats": {
+      "main": [
+        [
+          {
+            "node": "Create CSV File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "harding-soccer-scraper",
+  "tags": []
+}
