@@ -30,8 +30,3 @@ logs/
 
 # Docker volumes (if stored locally)
 volumes/
-
-# n8n specific - ignore user workflows but keep examples
-n8n-workflows/*
-!n8n-workflows/soccer.json
-n8n-backup/

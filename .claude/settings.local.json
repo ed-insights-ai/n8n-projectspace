@@ -4,7 +4,8 @@
       "Bash(curl:*)",
       "Bash(rg:*)",
       "WebFetch(domain:hardingsports.com)",
-      "WebFetch(domain:static.hardingsports.com)"
+      "WebFetch(domain:static.hardingsports.com)",
+      "Bash(make:*)"
     ]
   },
   "enableAllProjectMcpServers": false
