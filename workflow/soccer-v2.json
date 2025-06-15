@@ -1,0 +1,224 @@
+{
+  "name": "Harding Soccer Analytics - Fixed IDs",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "manual-trigger",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Set workflow parameters for Harding University\nconst school = 'Harding';\nconst season = '2024';\n\n// Construct URLs for Harding (static HTML pattern)\nconst rosterUrl = `https://static.hardingsports.com/custompages/msoc/${season}/teamgbg.htm`;\nconst basePlayerUrl = `https://static.hardingsports.com/custompages/msoc/${season}/`;\n\nconsole.log(`Configured for ${school} ${season} season`);\nconsole.log(`Roster URL: ${rosterUrl}`);\n\nreturn {\n  json: {\n    school: school,\n    season: season,\n    rosterUrl: rosterUrl,\n    basePlayerUrl: basePlayerUrl,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "id": "set-parameters",
+      "name": "Set Parameters"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.rosterUrl }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "id": "fetch-roster-page",
+      "name": "HTTP Request - Roster"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "playerLinks",
+              "cssSelector": "a[href^=\"plyr_\"]",
+              "returnValue": "html",
+              "returnArray": true
+            },
+            {
+              "key": "fullHtml",
+              "cssSelector": "body",
+              "returnValue": "html"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [900, 300],
+      "id": "extract-roster-links",
+      "name": "HTML Extract - Links"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse roster links and extract player info\nconst input = $input.all()[0].json;\nconst school = $('Set Parameters').first().json.school;\nconst season = $('Set Parameters').first().json.season;\nconst basePlayerUrl = $('Set Parameters').first().json.basePlayerUrl;\nconst playerLinks = input.playerLinks || [];\nconst fullHtml = input.fullHtml || '';\n\nlet players = [];\n\nconsole.log(`Processing roster for ${school} ${season}`);\nconsole.log(`Found ${playerLinks.length} player links from HTML extract`);\n\n// Try to extract from playerLinks first\nif (playerLinks.length > 0) {\n  console.log('Processing playerLinks from HTML Extract node');\n  players = playerLinks.map((item, index) => {\n    const hrefMatch = item.match(/href=\"([^\"]+)\"/);\n    const textMatch = item.match(/>([^<]+)</);\n    \n    if (!hrefMatch || !textMatch) {\n      console.log(`Could not parse link ${index}:`, item);\n      return null;\n    }\n    \n    const href = hrefMatch[1];\n    const playerName = textMatch[1].trim();\n    \n    // Extract jersey number from href filename or player name\n    const jerseyMatch = href.match(/plyr_(\\d+)\\.htm/) || \n                       playerName.match(/^#?\\s*(\\d+)\\s+(.+)/);\n    \n    let jersey = null;\n    let name = playerName;\n    \n    if (jerseyMatch) {\n      jersey = jerseyMatch[1];\n      if (jerseyMatch[2]) {\n        name = jerseyMatch[2].trim();\n      }\n    }\n    \n    const playerId = `${school}_${season}_player_${jersey || `unknown_${index}`}`;\n    \n    return {\n      player_id: playerId,\n      school: school,\n      season: season,\n      jersey: jersey || `unknown_${index}`,\n      name: name,\n      playerUrl: basePlayerUrl + href,\n      parseIndex: index\n    };\n  }).filter(player => player !== null);\n}\n\n// Fallback: extract from fullHtml if playerLinks didn't work\nif (players.length === 0 && fullHtml) {\n  console.log('Fallback: extracting from fullHtml');\n  const linkMatches = fullHtml.match(/<a href=\"plyr_\\d+\\.htm\">[^<]+<\\/a>/gi) || [];\n  console.log(`Found ${linkMatches.length} links via regex fallback`);\n  \n  players = linkMatches.map((link, index) => {\n    const hrefMatch = link.match(/href=\"(plyr_(\\d+)\\.htm)\"/);\n    const nameMatch = link.match(/>([^<]+)</);\n    \n    if (!hrefMatch || !nameMatch) {\n      console.log(`Could not parse fallback link ${index}:`, link);\n      return null;\n    }\n    \n    const href = hrefMatch[1];\n    const jersey = hrefMatch[2];\n    const name = nameMatch[1].trim();\n    \n    return {\n      player_id: `${school}_${season}_player_${jersey}`,\n      school: school,\n      season: season,\n      jersey: jersey,\n      name: name,\n      playerUrl: basePlayerUrl + href,\n      parseIndex: index\n    };\n  }).filter(player => player !== null);\n}\n\nconsole.log(`Successfully parsed ${players.length} players`);\nif (players.length > 0) {\n  console.log('Sample players:', players.slice(0, 3).map(p => `${p.name} (#${p.jersey})`));\n}\n\nif (players.length === 0) {\n  console.error('No players found! Check website structure or CSS selectors.');\n  return [{\n    json: {\n      error: 'No players found',\n      playerLinksCount: playerLinks.length,\n      fullHtmlLength: fullHtml.length,\n      school: school,\n      season: season\n    }\n  }];\n}\n\nreturn players.map(player => ({ json: player }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300],
+      "id": "parse-roster-data",
+      "name": "Parse Roster Data"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.playerUrl }}",
+        "options": {
+          "continueOnFail": true,
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300],
+      "id": "fetch-player-pages",
+      "name": "HTTP Request - Players"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "pageContent",
+              "cssSelector": "body",
+              "returnValue": "text"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [1560, 300],
+      "id": "extract-player-stats",
+      "name": "HTML Extract - Stats"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse individual player stats into comprehensive relational dataset\nconst allRecords = [];\nconst gameIdMap = new Map();\nlet gameCounter = 1;\nlet errorCount = 0;\n\n// Get school and season from the Set Parameters node to ensure consistency\nconst globalSchool = $('Set Parameters').first().json.school;\nconst globalSeason = $('Set Parameters').first().json.season;\n\nconsole.log(`Processing ${$input.all().length} player pages for ${globalSchool} ${globalSeason}`);\n\nfor (const item of $input.all()) {\n  const pageContent = item.json.pageContent || '';\n  const player_id = item.json.player_id || `${globalSchool}_${globalSeason}_player_unknown`;\n  const school = globalSchool; // Always use global values for consistency\n  const season = globalSeason; // Always use global values for consistency\n  const jersey = item.json.jersey || 'unknown';\n  const name = item.json.name || 'Unknown Player';\n  \n  console.log(`Processing player: ${name} (#${jersey}) - ID: ${player_id}`);\n  \n  // Skip if no page content (failed HTTP request)\n  if (!pageContent) {\n    console.warn(`No page content for player ${name} (#${jersey})`);\n    errorCount++;\n    continue;\n  }\n  \n  // Extract player info from page content if available (more accurate than roster)\n  const playerInfoMatch = pageContent.match(/#\\s*(\\d+)\\s+([^\\n\\r]+)/);\n  \n  let actualJersey = jersey;\n  let actualName = name;\n  \n  if (playerInfoMatch) {\n    actualJersey = playerInfoMatch[1].trim();\n    actualName = playerInfoMatch[2].trim();\n    // Update player_id with actual jersey if we found it\n    const correctedPlayerId = `${school}_${season}_player_${actualJersey}`;\n    console.log(`Corrected player ID from ${player_id} to ${correctedPlayerId}`);\n  }\n  \n  // Determine if player is goalkeeper based on stats available\n  const isGoalkeeper = pageContent.includes('GA') || \n                      pageContent.includes('Saves') || \n                      pageContent.includes('GAA') ||\n                      pageContent.includes('Goals Against');\n  \n  console.log(`Player ${actualName}: ${isGoalkeeper ? 'Goalkeeper' : 'Field Player'}`);\n  \n  // Use corrected player ID\n  const finalPlayerId = `${school}_${season}_player_${actualJersey}`;\n  \n  // Add player record\n  allRecords.push({\n    record_type: 'player',\n    player_id: finalPlayerId,\n    school: school,\n    season: season,\n    jersey: actualJersey,\n    name: actualName,\n    position: isGoalkeeper ? 'Goalkeeper' : 'Field Player',\n    is_goalkeeper: isGoalkeeper ? 'true' : 'false',\n    class_year: '',\n    hometown: '',\n    height: '',\n    weight: '',\n    previous_school: '',\n    // Empty fields for non-player records\n    game_id: '',\n    date: '',\n    opponent: '',\n    score: '',\n    location: '',\n    conference: '',\n    division: '',\n    games_played: '',\n    games_started: '',\n    minutes: '',\n    goals: '',\n    assists: '',\n    shots: '',\n    shots_on_goal: '',\n    fouls: '',\n    yellow_cards: '',\n    red_cards: '',\n    saves: '',\n    goals_against: '',\n    save_percentage: '',\n    shutouts: ''\n  });\n  \n  // Extract game rows from the table\n  // Pattern matches date followed by game data\n  const gameRowPattern = /(\\d{2}\\/\\d{2}\\/\\d{2})\\s+([^\\n\\r]+)/g;\n  let match;\n  let gameCount = 0;\n  \n  while ((match = gameRowPattern.exec(pageContent)) !== null) {\n    const gameRow = match[0];\n    const parts = gameRow.split(/\\s{2,}/);\n    \n    if (parts.length >= 4) {\n      const date = parts[0];\n      const opponent = parts[1];\n      const score = parts[2];\n      \n      // Create unique game ID (handle home/away duplicates)\n      const gameKey = `${school}_${season}_${date}_${opponent}`;\n      let game_id;\n      \n      if (!gameIdMap.has(gameKey)) {\n        game_id = `${school}_${season}_game_${String(gameCounter).padStart(3, '0')}`;\n        gameIdMap.set(gameKey, game_id);\n        gameCounter++;\n        \n        console.log(`Created new game: ${game_id} - ${date} vs ${opponent}`);\n        \n        // Add game record\n        allRecords.push({\n          record_type: 'game',\n          game_id: game_id,\n          school: school,\n          season: season,\n          date: date,\n          opponent: opponent,\n          score: score,\n          location: '', // Could be determined from context if needed\n          conference: 'Great American Conference',\n          division: 'Division II',\n          // Empty fields for non-game records\n          player_id: '',\n          jersey: '',\n          name: '',\n          position: '',\n          is_goalkeeper: '',\n          class_year: '',\n          hometown: '',\n          height: '',\n          weight: '',\n          previous_school: '',\n          games_played: '',\n          games_started: '',\n          minutes: '',\n          goals: '',\n          assists: '',\n          shots: '',\n          shots_on_goal: '',\n          fouls: '',\n          yellow_cards: '',\n          red_cards: '',\n          saves: '',\n          goals_against: '',\n          save_percentage: '',\n          shutouts: ''\n        });\n      } else {\n        game_id = gameIdMap.get(gameKey);\n      }\n      \n      // Parse player game stats\n      const playerGameStat = {\n        record_type: 'player_game_stat',\n        player_id: finalPlayerId,\n        game_id: game_id,\n        school: school,\n        season: season,\n        date: date,\n        opponent: opponent,\n        games_played: parts[3] || '0',\n        games_started: parts[4] || '0',\n        minutes: parts[5] || '0',\n        goals: '0', // Field player stats - not typically in goalkeeper tables\n        assists: '0',\n        shots: '0',\n        shots_on_goal: '0',\n        fouls: '0',\n        yellow_cards: '0',\n        red_cards: '0',\n        saves: '',\n        goals_against: '',\n        save_percentage: '',\n        shutouts: '',\n        // Empty fields for non-stat records\n        jersey: '',\n        name: '',\n        position: '',\n        is_goalkeeper: '',\n        class_year: '',\n        hometown: '',\n        height: '',\n        weight: '',\n        previous_school: '',\n        score: '',\n        location: '',\n        conference: '',\n        division: ''\n      };\n      \n      // Add goalkeeper-specific stats if available\n      if (isGoalkeeper && parts.length > 6) {\n        playerGameStat.goals_against = parts[6] || '';\n        playerGameStat.saves = parts[8] || '';\n        playerGameStat.save_percentage = parts[9] || '';\n        playerGameStat.shutouts = parts[13] || '';\n      }\n      \n      allRecords.push(playerGameStat);\n      gameCount++;\n    }\n  }\n  \n  console.log(`Found ${gameCount} games for ${actualName}`);\n}\n\nconst gameRecords = allRecords.filter(r => r.record_type === 'game');\nconst playerRecords = allRecords.filter(r => r.record_type === 'player');\nconst statRecords = allRecords.filter(r => r.record_type === 'player_game_stat');\n\nconsole.log(`Dataset Summary for ${globalSchool} ${globalSeason}:`);\nconsole.log(`- Games: ${gameRecords.length}`);\nconsole.log(`- Players: ${playerRecords.length}`);\nconsole.log(`- Player Game Stats: ${statRecords.length}`);\nconsole.log(`- Total Records: ${allRecords.length}`);\nconsole.log(`- Errors: ${errorCount}`);\n\n// Log some sample IDs to verify they're correct\nif (gameRecords.length > 0) {\n  console.log(`Sample Game IDs: ${gameRecords.slice(0, 3).map(g => g.game_id).join(', ')}`);\n}\nif (playerRecords.length > 0) {\n  console.log(`Sample Player IDs: ${playerRecords.slice(0, 3).map(p => p.player_id).join(', ')}`);\n}\n\nif (allRecords.length === 0) {\n  console.error('No records generated! Check data parsing logic.');\n  return [{\n    json: {\n      error: 'No data parsed',\n      errorCount: errorCount,\n      inputCount: $input.all().length\n    }\n  }];\n}\n\nreturn allRecords.map(record => ({ json: record }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300],
+      "id": "create-dataset",
+      "name": "Create Complete Dataset"
+    },
+    {
+      "parameters": {
+        "operation": "toCsv",
+        "options": {
+          "fileName": "{{ $('Set Parameters').first().json.school }}_soccer_{{ $('Set Parameters').first().json.season }}_dataset_fixed.csv"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [2000, 300],
+      "id": "create-csv-file",
+      "name": "Convert to CSV"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Parameters": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Roster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Roster": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract - Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract - Links": {
+      "main": [
+        [
+          {
+            "node": "Parse Roster Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Roster Data": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Players",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Players": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract - Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract - Stats": {
+      "main": [
+        [
+          {
+            "node": "Create Complete Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Complete Dataset": {
+      "main": [
+        [
+          {
+            "node": "Convert to CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "harding-soccer-fixed",
+  "tags": []
+}
