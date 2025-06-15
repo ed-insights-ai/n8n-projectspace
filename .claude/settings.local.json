@@ -5,7 +5,9 @@
       "Bash(rg:*)",
       "WebFetch(domain:hardingsports.com)",
       "WebFetch(domain:static.hardingsports.com)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ]
   },
   "enableAllProjectMcpServers": false
