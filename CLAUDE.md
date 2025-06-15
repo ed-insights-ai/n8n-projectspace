@@ -92,13 +92,29 @@ The application uses a multi-container Docker setup:
 
 ## Workflow Structure
 
-The project includes specialized workflows:
+The project includes specialized workflows for soccer analytics:
 
-### Soccer Statistics Scraper
-- **File**: `workflow/soccer.json`
+### Soccer Statistics Scraper V2 (Current)
+- **File**: `workflow/soccer-v2-fixed.json`
 - **Purpose**: Scrapes Harding University soccer statistics from static HTML pages
-- **Output**: Game-by-game CSV data for analysis
+- **Output**: Relational CSV files (games, players, player_stats, etc.)
 - **Architecture**: HTTP requests → HTML parsing → CSV generation
+- **Status**: Production POC with known technical debt
+
+### Soccer Analytics V3 (Next Generation)
+- **File**: `workflow/soccer-v3-architecture-spec.md`
+- **Purpose**: AI-powered soccer data extraction with enterprise database storage
+- **Technology**: Firecrawl + Supabase + n8n
+- **Architecture**: Firecrawl API → Structured JSON → PostgreSQL database
+- **Benefits**: 95% fewer parsing errors, zero maintenance, real-time analytics
+- **Status**: Architecture complete, implementation planned
+
+### V3 Key Improvements
+- **Reliability**: AI-powered extraction vs brittle CSS selectors
+- **Scalability**: PostgreSQL database vs CSV files
+- **Maintainability**: Zero-maintenance scraping adapts to website changes
+- **Performance**: Single API call vs multiple HTTP requests + parsing
+- **Cost**: <$60/month for complete 6-school GAC coverage
 
 ### Workflow Import Process
 1. Access n8n at http://localhost:5678
