@@ -5,15 +5,16 @@
 ## 1. Overview
 
 ### Purpose & Description
-* **What it does**: Automatically extracts all Harding University soccer player statistics from the athletics website and delivers them in a single, analysis-ready CSV file
-* **Process**: Visits the team roster page, identifies all players, downloads their individual statistics pages, and consolidates game-by-game data into structured format
-* **Deliverable**: Excel-compatible CSV file with comprehensive player performance data
+* **What it does**: Automatically extracts soccer player statistics from university athletics websites and appends them to a growing multi-institutional, multi-year dataset for comprehensive sports analytics
+* **Process**: Visits team roster pages, identifies all players, downloads individual statistics pages, and appends normalized data to cumulative CSV files that build over time across schools and seasons
+* **Deliverable**: Cumulative dataset collection with comprehensive team, game, and player performance data from multiple universities and seasons, structured for advanced analytics and machine learning
 
 ### Benefits & Value
-* **Primary benefit**: Transforms 2-3 hours of manual data collection into a 3-minute automated process
-* **Time savings**: 95% reduction in data collection time (3 hours → 3 minutes)
-* **Quality improvement**: Eliminates copy-paste errors and ensures consistent data format
-* **Ease of use**: One-click execution requiring no technical knowledge
+* **Primary benefit**: Transforms 2-3 hours of manual data collection into a 3-minute automated process while building a comprehensive multi-institutional dataset
+* **Time savings**: 95% reduction in data collection time (3 hours → 3 minutes) per school per season
+* **Quality improvement**: Eliminates copy-paste errors and ensures consistent data format across all institutions
+* **Analytics potential**: Creates large-scale dataset enabling cross-school comparisons, recruiting insights, and predictive modeling
+* **Scalability**: Single workflow supports data collection from multiple universities and seasons
 
 ### Audience
 * **Primary users**: Soccer coaching staff who need regular performance data
@@ -55,19 +56,26 @@ Automated web scraping workflow that replicates the manual process but executes 
 ## 3. User Experience
 
 ### Typical Usage Scenario
-Coach Martinez is preparing for Monday's team meeting and needs current statistics for all players to review weekend performance and plan the week's training focus. It's Sunday evening, and the latest games have been updated on the Harding Sports website. He opens n8n in his web browser, navigates to the "Soccer Stats Scraper" workflow, and clicks the "Execute Workflow" button. Within 3 minutes, he receives a notification that the process is complete. He downloads the "harding_msoc_2024_stats.csv" file, which contains complete game-by-game statistics for all 25 players on the roster. He imports this directly into his Excel template, creates performance charts, and has actionable insights ready for tomorrow's 7 AM team meeting.
+Coach Martinez is preparing for Monday's team meeting and needs current statistics for all players, plus he wants to see how his team compares to other universities. It's Sunday evening, and the latest games have been updated. He opens n8n, navigates to the "Soccer Stats Scraper" workflow, enters "Harding" and "2024" as parameters, and executes. Within 3 minutes, the workflow appends new Harding data to the master dataset files. He downloads the updated cumulative CSV files containing data from multiple schools and seasons, imports them into his analytics dashboard, and can now compare his players' performance against similar players from other institutions, identify recruiting targets based on historical performance patterns, and has comprehensive insights ready for tomorrow's 7 AM team meeting.
 
 ### Step-by-Step Execution
 1. **Open n8n interface** → *Workflow dashboard loads* → Clean, familiar interface with workflow list
 2. **Click "Soccer Stats Scraper" workflow** → *Workflow details open* → See execution history and current status
-3. **Click "Execute Workflow" button** → *Process begins automatically* → No configuration needed, system handles everything
-4. **Monitor progress (optional)** → *Real-time status updates* → Can see which players are being processed
-5. **Download CSV file when complete** → *File ready for immediate use* → Perfect formatting for Excel import
+3. **Enter school and year parameters** → *Configure institution and season* → Specify which school and season to collect (e.g., "Harding", "2024")
+4. **Click "Execute Workflow" button** → *Process begins automatically* → System appends new data to master dataset files
+5. **Monitor progress (optional)** → *Real-time status updates* → Can see which players are being processed
+6. **Download updated master dataset when complete** → *6 cumulative files with new data appended* → Growing dataset ready for advanced analytics and cross-institutional analysis
 
 ### Alternative Usage Scenarios
-* **Season-end analysis**: Athletic department runs comprehensive statistics for annual reports and NCAA submissions
-* **Recruitment analysis**: Coaching staff evaluates current player performance monthly during recruiting periods to inform scholarship decisions
-* **Error handling**: If website is temporarily unavailable, system provides clear error messages and processes available data, allowing manual completion of missing players
+* **Complete GAC Analysis**: Compare all 6 GAC men's soccer schools for comprehensive conference insights
+* **Championship Prediction**: Use historical data to predict GAC tournament outcomes (Fort Hays State won 2024)
+* **Recruitment Intelligence**: Identify top performers across all GAC schools for strategic transfer recruitment
+* **Regional Talent Mapping**: Kansas vs Oklahoma player development patterns and regional recruiting trends
+* **Conference Competitive Balance**: Analyze parity across GAC schools and identify dominant programs
+* **Player development tracking**: Follow individual players across multiple seasons to assess development patterns
+* **Coaching strategy analysis**: Compare tactical approaches across different institutions and identify successful patterns
+* **Academic research**: Support sports science research with comprehensive multi-institutional dataset
+* **Predictive modeling**: Use historical multi-school data to predict player performance, team success, and recruiting outcomes
 
 ---
 
@@ -79,107 +87,222 @@ graph TD
     A[Coach Needs Stats] --> B[Access Team Roster]
     B --> C[Find All Players]
     C --> D[Get Individual Stats]
-    D --> E[Combine All Data]
-    E --> F[Create CSV File]
-    F --> G[Coach Downloads File]
+    D --> E[Parse & Extract Data]
+    E --> F[Normalize into Tables]
+    F --> G[Create 6 CSV Files]
+    G --> H[Package for Download]
+    H --> I[Coach Downloads Collection]
     
     %% Business context annotations
     A -.->|"Weekly analysis need"| B
     B -.->|"Harding Sports website"| C
     C -.->|"Player roster with links"| D
     D -.->|"Game-by-game statistics"| E
-    E -.->|"Consolidated dataset"| F
-    F -.->|"Ready for Excel analysis"| G
+    E -.->|"Raw statistical data"| F
+    F -.->|"Relational structure"| G
+    G -.->|"6 interconnected files"| H
+    H -.->|"Zip file with all CSVs"| I
+    I -.->|"Ready for Excel analysis"| A
 ```
 
 ### Detailed Technical Breakdown
-| Node Name | Action | Input | Output | Error Impact |
-|-----------|--------|-------|--------|--------------|
-| Manual Trigger | User initiates workflow | Button click | Workflow start signal | No execution possible |
-| Fetch Roster | Download team roster page | https://static.hardingsports.com/custompages/msoc/2024/teamgbg.htm | HTML roster content with player links | Complete workflow failure |
-| Extract Player Links | Find individual player page URLs | HTML content | Array of links like "plyr_1.htm", "plyr_21.htm" | No players identified |
-| Parse Roster Data | Convert links to structured player info | Player links/HTML | Player objects with jersey numbers, positions, and full URLs | Incomplete player identification |
-| Fetch Player Pages | Download individual statistics pages | URLs like plyr_{number}.htm | HTML stats content (1-2 tables per player) | Missing data for affected players |
-| Extract Player Stats | Convert HTML to text for parsing | HTML stats pages | Plain text statistics tables (1 or 2 tables depending on player type) | Cannot parse affected players |
-| Parse Player Stats | Structure game data into records | Text statistics (field stats + goalkeeper stats for goalies) | JSON game records with appropriate statistical fields | Unusable data format |
-| Create CSV File | Generate downloadable file | Structured records | harding_msoc_2024_stats.csv | No deliverable for users |
+| Node Name | Action | Input | Output | Error Impact | n8n Node Type & Documentation |
+|-----------|--------|-------|--------|--------------|-------------------------------|
+| Manual Trigger | User initiates workflow | Button click + School + Year parameters | Workflow start signal with institution and season | No execution possible | [Manual Trigger](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.manualTrigger/) |
+| Validate Parameters | Check school and year validity | School identifier + Year parameter | Valid parameters for URL construction | Invalid parameters stop execution | [IF Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.if/) + [Function](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
+| Identify Website Pattern | Determine school's platform type | School identifier | Website pattern (Static HTML vs SideArm CMS) | Unknown school type | [Switch Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.switch/) |
+| Construct URLs | Build platform-specific URLs | School pattern + validated parameters | Dynamic URLs for target institution | URL construction failure | [Function Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
+| Fetch Roster | Download team roster page | School-specific roster URL | HTML roster content with player links | Complete workflow failure | [HTTP Request Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httpRequest/) |
+| Load Existing Data | Read current master CSV files | Existing cumulative dataset files | Current dataset state for appending | Creates new files if none exist | [Read Binary File](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.readBinaryFile/) + [CSV Parser](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
+| Extract Player Links | Find individual player page URLs | HTML content | Array of links like "plyr_1.htm", "plyr_21.htm" | No players identified | [HTML Extract](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.htmlExtract/) + [Function](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
+| Parse Roster Data | Convert links to structured player info | Player links/HTML | Player objects with jersey numbers, positions, and full URLs | Incomplete player identification | [Function Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
+| Fetch Player Pages | Download individual statistics pages | URLs like plyr_{number}.htm | HTML stats content (1-2 tables per player) | Missing data for affected players | [HTTP Request Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httpRequest/) (Loop) |
+| Extract Player Stats | Convert HTML to text for parsing | HTML stats pages | Plain text statistics tables (1 or 2 tables depending on player type) | Cannot parse affected players | [HTML Extract](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.htmlExtract/) |
+| Parse Player Stats | Structure game data into records | Text statistics (field stats + goalkeeper stats for goalies) | JSON game records with appropriate statistical fields | Unusable data format | [Function Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
+| Normalize Data | Split data into relational structure | JSON game records | Normalized data objects for 6 tables with school/year identifiers | Poor data quality and relationships | [Function Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
+| Append to Master Files | Add new data to existing datasets | Normalized data + existing CSV files | Updated master CSV files with new data appended | Data corruption or duplicate records | [Function](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) + [Write Binary File](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.writeBinaryFile/) |
+| Deduplicate Records | Remove any duplicate entries | Updated CSV files | Clean master dataset files | Data integrity issues | [Function Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
+| Generate Analytics Summary | Create data summary report | Complete master dataset | Summary statistics and data quality report | No visibility into dataset status | [Function Node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.function/) |
 
 ---
 
 ## 5. Data Specification
 
 ### Input Data
-* **Source**: Harding Sports website (static.hardingsports.com)
-* **Team roster page**: https://static.hardingsports.com/custompages/msoc/2024/teamgbg.htm
-* **Individual player pages**: https://static.hardingsports.com/custompages/msoc/2024/plyr_{number}.htm
-  * Example: https://static.hardingsports.com/custompages/msoc/2024/plyr_1.htm (Player #1)
-  * Example: https://static.hardingsports.com/custompages/msoc/2024/plyr_21.htm (Player #21)
-* **Format**: HTML pages with embedded statistics tables (1 table for field players, 2 tables for goalkeepers)
-* **Requirements**: Active internet connection and accessible website
-* **Data Complexity**: Goalkeepers have both field player statistics and goalkeeper-specific statistics requiring dual table parsing
+* **Source**: Great American Conference (GAC) Men's Soccer Division II athletics websites
+* **Supported Universities & Website Patterns**:
 
-### Output Data Schema
+  **Pattern A - Static HTML (Legacy Format)**:
+  * **Harding University**: static.hardingsports.com
+    * Team roster: `/custompages/msoc/{YEAR}/teamgbg.htm`
+    * Player pages: `/custompages/msoc/{YEAR}/plyr_{number}.htm`
 
-**Field Player Statistics (Single Table)**
+  **Pattern B - Modern CMS (SideArm Sports Platform)**:
+  * **Ouachita Baptist University**: obutigers.com
+    * Team roster: `/sports/mens-soccer/roster/{YEAR}`
+  * **Fort Hays State University**: fhsuathletics.com
+    * Team roster: `/sports/mens-soccer/roster`
+  * **Newman University**: newmanjets.com
+    * Team roster: `/sports/mens-soccer/roster`
+  * **Rogers State University**: rsuhillcats.com
+    * Team roster: `/sports/mens-soccer/roster`
+  * **Northeastern State University**: goriverhawksgo.com
+    * Team roster: `/sports/mens-soccer/roster`
+
+* **Parameters**: 
+  * School identifier (e.g., "Harding", "Ouachita_Baptist", "Fort_Hays_State", "Newman", "Rogers_State", "Northeastern_State")
+  * Season year (2020-current)
+* **Website Platform Analysis**: 5 of 6 schools use SideArm Sports CMS with identical URL patterns, 1 school uses legacy static HTML
+* **Scalability**: High - 83% of GAC soccer schools share identical URL structure
+* **Format**: HTML pages with embedded statistics (varies by platform but consistent within platform type)
+* **Requirements**: Active internet connection, accessible website, valid school and year parameters
+* **Data Complexity**: Two distinct parsing strategies needed - one for static HTML, one for SideArm CMS
+
+### Output Data Schema - Relational Structure
+
+The workflow generates 6 interconnected CSV files that function as a normalized relational database:
+
+**1. games.csv - Master Game Records (All Schools, All Years)**
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| jersey | String | Player's jersey number | "21" |
-| name | String | Player's full name | "Aitor Scholl" |
+| game_id | String | Unique game identifier | "Harding_2024_game_001" |
+| school | String | University identifier | "Harding" |
+| season | String | Season year | "2024" |
 | date | String | Game date (MM/DD/YY format) | "09/05/24" |
 | opponent | String | Opposing team name | "Oklahoma Baptist" |
-| score | String | Final game score | "2-1" |
-| gp | String | Games played | "1" |
-| gs | String | Games started | "0" |
+| score | String | Final game score (Home-Away) | "2-1" |
+| location | String | Home/Away designation | "Home" |
+| conference | String | Athletic conference | "Great American Conference" |
+| division | String | NCAA Division | "Division II" |
+
+**2. team_game_stats.csv - Team Statistics by Game (All Schools)**
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| game_id | String | Foreign key to games table | "Harding_2024_game_001" |
+| school | String | University identifier | "Harding" |
+| goals_for | String | Goals scored by team | "2" |
+| goals_against | String | Goals conceded by team | "1" |
+| shots_total | String | Total shots by team | "18" |
+| shots_on_goal | String | Shots on goal by team | "8" |
+| corner_kicks | String | Corner kicks earned | "6" |
+| fouls_committed | String | Fouls committed by team | "12" |
+| yellow_cards | String | Yellow cards received | "2" |
+| red_cards | String | Red cards received | "0" |
+
+**3. opponent_game_stats.csv - Opponent Statistics by Game**
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| game_id | String | Foreign key to games table | "game_001" |
+| goals_for | String | Goals scored by opponent | "1" |
+| goals_against | String | Goals conceded by opponent | "2" |
+| shots_total | String | Total shots by opponent | "12" |
+| shots_on_goal | String | Shots on goal by opponent | "6" |
+| corner_kicks | String | Corner kicks earned by opponent | "3" |
+| fouls_committed | String | Fouls committed by opponent | "15" |
+| yellow_cards | String | Yellow cards received by opponent | "3" |
+| red_cards | String | Red cards received by opponent | "0" |
+
+**4. goal_events.csv - Individual Goal Details**
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| event_id | String | Unique event identifier | "goal_001" |
+| game_id | String | Foreign key to games table | "game_001" |
+| player_id | String | Foreign key to players table | "player_021" |
+| minute | String | Minute when goal was scored | "23" |
+| assist_player_id | String | Player who assisted (if any) | "player_010" |
+| goal_type | String | Type of goal | "Open Play" |
+
+**5. player_game_stats.csv - Individual Player Performance by Game**
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| player_id | String | Foreign key to players table | "player_021" |
+| game_id | String | Foreign key to games table | "game_001" |
+| games_played | String | Games played (0 or 1) | "1" |
+| games_started | String | Games started (0 or 1) | "0" |
 | minutes | String | Minutes played | "25" |
 | goals | String | Goals scored | "0" |
 | assists | String | Assists | "0" |
 | shots | String | Total shots | "2" |
-| sog | String | Shots on goal | "1" |
+| shots_on_goal | String | Shots on goal | "1" |
 | fouls | String | Fouls committed | "1" |
-| yellow | String | Yellow cards | "0" |
-| red | String | Red cards | "0" |
+| yellow_cards | String | Yellow cards | "0" |
+| red_cards | String | Red cards | "0" |
+| saves | String | Saves (goalkeepers only) | "5" |
+| goals_against | String | Goals against (goalkeepers only) | "1" |
+| save_percentage | String | Save percentage (goalkeepers only) | "83.3" |
+| shutouts | String | Shutouts (goalkeepers only) | "0" |
 
-**Goalkeeper Statistics (Dual Tables - Field Stats + Goalkeeper Stats)**
+**6. players.csv - Player Master Data (All Schools, All Years)**
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| jersey | String | Player's jersey number | "1" |
-| name | String | Player's full name | "Inigo Chavarria" |
-| date | String | Game date (MM/DD/YY format) | "09/05/24" |
-| opponent | String | Opposing team name | "Oklahoma Baptist" |
-| score | String | Final game score | "2-1" |
-| gp | String | Games played | "1" |
-| gs | String | Games started | "1" |
-| minutes | String | Minutes played | "90" |
-| goals | String | Goals scored (field stats) | "0" |
-| assists | String | Assists (field stats) | "0" |
-| shots | String | Total shots (field stats) | "0" |
-| sog | String | Shots on goal (field stats) | "0" |
-| fouls | String | Fouls committed (field stats) | "0" |
-| yellow | String | Yellow cards (field stats) | "0" |
-| red | String | Red cards (field stats) | "0" |
-| ga | String | Goals against (goalkeeper stats) | "1" |
-| gaaVg | String | Goals against average | "1.00" |
-| saves | String | Number of saves | "5" |
-| savePct | String | Save percentage | "83.3" |
-| w | String | Wins | "1" |
-| l | String | Losses | "0" |
-| t | String | Ties | "0" |
-| sho | String | Shutouts | "0" |
+| player_id | String | Unique player identifier | "Harding_2024_player_021" |
+| school | String | University identifier | "Harding" |
+| season | String | Season year | "2024" |
+| jersey | String | Player's jersey number | "21" |
+| name | String | Player's full name | "Aitor Scholl" |
+| position | String | Primary position | "Midfielder" |
+| is_goalkeeper | String | Goalkeeper flag (true/false) | "false" |
+| class_year | String | Academic class | "Sophomore" |
+| hometown | String | Player's hometown | "Barcelona, Spain" |
+| height | String | Player height | "5'10" |
+| weight | String | Player weight | "165" |
+| previous_school | String | Previous institution (transfers) | "Barcelona FC Academy" |
 
-### Sample Output
+### Sample Output - Relational CSV Collection
 
-**Field Player Records**
+**games.csv (Cumulative - All GAC Schools & Years)**
 ```
-jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yellow,red
-21,Aitor Scholl,09/05/24,Oklahoma Baptist,2-1,1,0,25,0,0,2,1,1,0,0
-21,Aitor Scholl,09/07/24,Arkansas Tech,1-0,1,1,90,1,1,4,2,0,0,0
+game_id,school,season,date,opponent,score,location,conference,division
+Harding_2024_game_001,Harding,2024,09/05/24,Ouachita Baptist,2-1,Home,Great American Conference,Division II
+Ouachita_Baptist_2024_game_001,Ouachita Baptist,2024,09/05/24,Harding,1-2,Away,Great American Conference,Division II
+Fort_Hays_State_2024_game_005,Fort Hays State,2024,10/15/24,Newman,3-1,Home,Great American Conference,Division II
+Newman_2024_game_012,Newman,2024,10/15/24,Fort Hays State,1-3,Away,Great American Conference,Division II
+Rogers_State_2023_game_008,Rogers State,2023,09/20/23,Northeastern State,2-2,Home,Great American Conference,Division II
 ```
 
-**Goalkeeper Records (Combined Field + Goalkeeper Stats)**
+**team_game_stats.csv (Cumulative - All GAC Schools & Years)**
 ```
-jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yellow,red,ga,gaaVg,saves,savePct,w,l,t,sho
-1,Inigo Chavarria,09/05/24,Oklahoma Baptist,2-1,1,1,90,0,0,0,0,0,0,0,1,1.00,5,83.3,1,0,0,0
-1,Inigo Chavarria,09/07/24,Arkansas Tech,1-0,1,1,90,0,0,0,0,0,0,0,0,0.50,3,100.0,1,0,0,1
+game_id,school,goals_for,goals_against,shots_total,shots_on_goal,corner_kicks,fouls_committed,yellow_cards,red_cards
+Harding_2024_game_001,Harding,2,1,18,8,6,12,2,0
+Ouachita_Baptist_2024_game_001,Ouachita Baptist,1,2,12,5,3,15,3,0
+Fort_Hays_State_2024_game_005,Fort Hays State,3,1,22,11,8,9,1,0
+Newman_2024_game_012,Newman,1,3,14,6,4,13,2,1
+Rogers_State_2023_game_008,Rogers State,2,2,16,7,5,11,1,0
+```
+
+**opponent_game_stats.csv**
+```
+game_id,goals_for,goals_against,shots_total,shots_on_goal,corner_kicks,fouls_committed,yellow_cards,red_cards
+2024_game_001,1,2,12,6,3,15,3,0
+2024_game_002,0,1,9,4,2,11,2,1
+```
+
+**goal_events.csv**
+```
+event_id,game_id,player_id,minute,assist_player_id,goal_type
+2024_goal_001,2024_game_001,2024_player_010,23,2024_player_021,Open Play
+2024_goal_002,2024_game_001,2024_player_005,67,,Header
+2024_goal_003,2024_game_002,2024_player_021,45,2024_player_010,Counter Attack
+```
+
+**player_game_stats.csv**
+```
+player_id,game_id,games_played,games_started,minutes,goals,assists,shots,shots_on_goal,fouls,yellow_cards,red_cards,saves,goals_against,save_percentage,shutouts
+2024_player_021,2024_game_001,1,0,25,0,1,2,1,1,0,0,,,, 
+2024_player_021,2024_game_002,1,1,90,1,0,4,2,0,0,0,,,, 
+2024_player_001,2024_game_001,1,1,90,0,0,0,0,0,0,0,5,1,83.3,0
+2024_player_001,2024_game_002,1,1,90,0,0,0,0,0,0,0,3,0,100.0,1
+```
+
+**players.csv (Cumulative - All GAC Schools & Years)**
+```
+player_id,school,season,jersey,name,position,is_goalkeeper,class_year,hometown,height,weight,previous_school
+Harding_2024_player_001,Harding,2024,1,Inigo Chavarria,Goalkeeper,true,Junior,Pamplona Spain,6'2,185,Real Sociedad Youth
+Ouachita_Baptist_2024_player_010,Ouachita Baptist,2024,10,Blake Morrison,Forward,false,Senior,Little Rock AR,5'11,170,Arkansas Football Club
+Fort_Hays_State_2024_player_007,Fort Hays State,2024,7,Carlos Rodriguez,Midfielder,false,Junior,Wichita KS,5'9,160,Sporting Kansas City Academy
+Newman_2024_player_015,Newman,2024,15,Tyler Johnson,Defender,false,Sophomore,Topeka KS,6'1,180,Sporting Kansas City II
+Rogers_State_2023_player_020,Rogers State,2023,20,Jackson Smith,Forward,false,Senior,Tulsa OK,5'10,175,FC Tulsa Academy
+Northeastern_State_2024_player_003,Northeastern State,2024,3,Miguel Santos,Defender,false,Freshman,Oklahoma City OK,6'0,170,Oklahoma City Energy FC Academy
 ```
 
 ---
@@ -206,9 +329,9 @@ jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yell
 * All coaching staff can execute without technical training
 
 ### Validation & Quality Checks
-* **Data quality**: Verify jersey numbers and player names match official roster, validate date formats are consistent, confirm goalkeepers have both field and goalkeeper statistics
-* **Process integrity**: Confirm roster page accessed successfully, all player links functional, dual table parsing works for goalkeepers, CSV properly formatted
-* **Output validation**: Check file size is reasonable (50-500KB), contains expected number of records based on roster size, goalkeepers have additional statistical columns
+* **Data quality**: Verify jersey numbers and player names match official roster, validate date formats are consistent, confirm relational integrity between CSV files using foreign keys
+* **Process integrity**: Confirm roster page accessed successfully, all player links functional, all 6 CSV files generated successfully, proper normalization of data across tables
+* **Output validation**: Check file collection size is reasonable (300KB-2MB total), verify record counts match expected relationships (games × players for stats), confirm goalkeepers have goalkeeper-specific fields populated
 
 ---
 
@@ -233,12 +356,12 @@ jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yell
 ### Configuration Steps
 1. **Import workflow**: Upload soccer.json file through n8n import feature under "Workflows" menu
 2. **Verify website access**: 
-   * Test that https://static.hardingsports.com/custompages/msoc/2024/teamgbg.htm loads from n8n instance
-   * Check that individual player pages are accessible (e.g., plyr_1.htm, plyr_21.htm)
+   * Test that https://static.hardingsports.com/custompages/msoc/{YEAR}/teamgbg.htm pattern works
+   * Check that individual player pages are accessible for different years (e.g., 2024/plyr_1.htm, 2023/plyr_21.htm)
 3. **Run test execution**: Execute workflow once with current roster to validate functionality
 4. **Confirm file download**: Ensure CSV file generates properly and can be downloaded
 
-**Note**: The workflow is pre-configured with 2024 URLs. For different seasons, the year in URLs must be updated in the workflow configuration.
+**Note**: The workflow uses a dynamic year parameter. Users simply input the desired season year (e.g., 2024, 2023, 2022) and the system automatically constructs the appropriate URLs.
 
 ---
 
@@ -261,7 +384,7 @@ jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yell
 ### Troubleshooting
 | Issue | Likely Cause | Action |
 |-------|--------------|--------|
-| No players found in output | Website structure changed or roster page unavailable | 1. Check if https://static.hardingsports.com/custompages/msoc/2024/teamgbg.htm loads in browser<br>2. Contact technical administrator to update workflow |
+| No players found in output | Website structure changed, roster page unavailable, or invalid year | 1. Verify year parameter is valid (e.g., 2024, 2023)<br>2. Check if URL loads in browser with specified year<br>3. Contact technical administrator if structure changed |
 | Some players missing from results | Individual player pages temporarily unavailable | 1. Check specific player URLs (e.g., plyr_1.htm, plyr_21.htm)<br>2. Re-run workflow later, manually note missing players |
 | Goalkeeper statistics incomplete | Parsing logic failed to extract both statistical tables | 1. Verify goalkeeper pages have both field and goalkeeper tables<br>2. Contact technical administrator for parsing logic review |
 | Field players showing goalkeeper columns | Data parsing incorrectly identified player type | 1. Check roster page for accurate position information<br>2. Manual review of affected player pages needed |
@@ -271,13 +394,13 @@ jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yell
 
 **Success indicators:**
 * All workflow nodes show green checkmarks in execution log
-* CSV file is generated and available for download
-* File size is reasonable (typically 50-500KB depending on roster size)
-* File opens properly in Excel with expected columns and data
+* All 6 CSV files are generated and available for download as a zip collection
+* File collection size is reasonable (typically 300KB-2MB depending on roster size and season length)
+* All files open properly in Excel with expected columns and proper relational structure
 
 **Failure indicators:**
 * Red error indicators on any workflow nodes
-* No CSV file generated or zero-byte file
+* No CSV files generated or missing files from the 6-file collection
 * Error messages mentioning network connectivity or parsing issues
 * Execution time exceeds 15 minutes without completion
 
@@ -293,13 +416,11 @@ jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yell
 * Confirm goalkeeper statistics include both field and goalkeeper-specific data
 
 **Seasonal:**
-* Update year in URLs for new season:
-  * Team roster: https://static.hardingsports.com/custompages/msoc/{YEAR}/teamgbg.htm
-  * Player pages: https://static.hardingsports.com/custompages/msoc/{YEAR}/plyr_{number}.htm
-  * Example: Change 2024 → 2025 for next season
-* Verify roster page structure hasn't changed on website
-* Test workflow with new season's player pages and data format
-* Update CSV filename to reflect new year (e.g., harding_msoc_2025_stats.csv)
+* Verify roster page structure hasn't changed on website for new seasons
+* Test workflow with new season's data (typically August for new academic year)
+* Validate year parameter works with latest season URLs
+* Confirm data schema remains consistent across seasons
+* **Supported Years**: Currently supports 2020-present (validate availability for older seasons)
 
 **Ad-hoc:**
 * **Trigger**: Website structure changes causing workflow failures
@@ -309,13 +430,16 @@ jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yell
 **Short-term (next 3 months):**
 * Email notification system when workflow completes
 * Error summary report for failed player pages
-* Basic data validation checks and anomaly detection
+* Advanced data validation for relational integrity
+* Excel template with pre-built relationships between tables
 
 **Long-term (6+ months):**
-* Extension to other sports (basketball, baseball, volleyball)
-* Historical data comparison and trend analysis features
-* Integration with coaching analytics dashboard
-* Automated scheduling for regular execution during season
+* **Complete GAC Coverage**: Add all 6 GAC men's soccer schools to create comprehensive conference dataset
+* **Multi-Sport Expansion**: Extend to other sports using the same cumulative model (basketball, baseball)
+* **Machine Learning Platform**: Develop ML models for player performance prediction and recruiting recommendations
+* **Conference Analytics Dashboard**: Real-time GAC competitive intelligence and cross-institutional comparisons
+* **Automated Data Collection**: Scheduled execution across all GAC schools during active seasons
+* **Regional Expansion**: Extend to other Division II conferences using proven GAC model
 
 ---
 
@@ -334,11 +458,19 @@ jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yell
 * n8n basic user guide for non-technical users
 
 **Technical resources:**
-* Harding Sports website URL patterns:
+* **Website Pattern A - Static HTML (Harding only)**:
   * Team roster: https://static.hardingsports.com/custompages/msoc/{YEAR}/teamgbg.htm
   * Player pages: https://static.hardingsports.com/custompages/msoc/{YEAR}/plyr_{NUMBER}.htm
-* n8n workflow development and maintenance guide
-* Web scraping best practices and troubleshooting
+* **Website Pattern B - SideArm CMS (5 schools)**:
+  * Fort Hays State: https://fhsuathletics.com/sports/mens-soccer/roster
+  * Newman University: https://newmanjets.com/sports/mens-soccer/roster
+  * Rogers State: https://rsuhillcats.com/sports/mens-soccer/roster
+  * Northeastern State: https://goriverhawksgo.com/sports/mens-soccer/roster
+  * Ouachita Baptist: https://obutigers.com/sports/mens-soccer/roster
+* **Scalability Assessment**: 83% platform standardization across GAC schools
+* **Implementation Priority**: SideArm CMS pattern covers most schools efficiently
+* **Valid Years**: 2020-present (check availability for specific seasons)
+* **n8n Documentation Links**: See technical workflow table for specific node documentation
 
 **Business context:**
 * Soccer program performance evaluation criteria and KPIs
@@ -349,22 +481,24 @@ jersey,name,date,opponent,score,gp,gs,minutes,goals,assists,shots,sog,fouls,yell
 
 ## Quick Reference Summary
 
-**What**: Automatically extracts all Harding soccer player statistics into Excel-ready CSV file
+**What**: Automatically builds comprehensive multi-institutional soccer analytics database from university websites
 
-**Why**: Saves 2-3 hours of manual data collection per session, eliminates errors, enables weekly analysis
+**Why**: Creates unprecedented dataset for cross-school analysis, recruiting intelligence, and predictive modeling
 
-**Who**: Soccer coaching staff use weekly during season, monthly during off-season
+**Who**: Coaching staff, athletic departments, researchers, and sports analytics professionals
 
-**How**: One-click execution in n8n - no technical knowledge required
+**How**: Configurable execution per school/season - appends to growing master dataset
 
-**Output**: "harding_msoc_2024_stats.csv" with complete game-by-game player statistics
+**Output**: Master dataset collection with cumulative team, game, and player statistics from multiple universities and seasons
 
-**Time**: 2-5 minutes execution, ready for immediate Excel import
+**Scale**: Supports unlimited schools and seasons - designed for conference-wide and regional analysis
 
-**Support**: Contact Ed Insights Team for technical issues or enhancement requests
+**Analytics**: Enables machine learning, player comparison, recruiting insights, and competitive intelligence
+
+**Support**: Contact Ed Insights Team for adding new schools or enhancement requests
 
 ---
 
 ## Impact Statement
 
-This workflow represents a 95% efficiency gain in sports data collection, transforming hours of manual work into minutes of automated processing. It enables the coaching staff to focus on what they do best - developing players and winning games - instead of copying and pasting statistics. The consistent, error-free data format also opens opportunities for advanced analytics and performance insights that were previously impractical due to time constraints.
+This workflow represents a 95% efficiency gain in sports data collection while creating an unprecedented multi-institutional soccer analytics database. It transforms hours of manual work into minutes of automated processing across multiple schools and seasons. The cumulative dataset enables coaching staff to benchmark against peer institutions, identify recruiting targets based on comprehensive performance data, and leverage machine learning insights that were previously impossible with limited single-school datasets. This scalable approach creates a competitive advantage through data-driven decision making at the conference and regional level.
