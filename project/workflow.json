@@ -1,0 +1,564 @@
+{
+  "createdAt": "2025-07-09T02:34:30.514Z",
+  "updatedAt": "2025-07-09T03:22:22.894Z",
+  "id": "QFPEXr7qSMvXmKSr",
+  "name": "Soccer Analytics Data Extraction Pipeline - FIXED",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "2",
+      "name": "Firecrawl Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/scrape",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "fireCrawlApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.firecrawlApi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"url\": \"https://static.hardingsports.com/custompages/msoc/2024/teamgbg.htm\",\n  \"formats\": [\"markdown\"],\n  \"onlyMainContent\": true,\n  \"excludeTags\": [\"img\", \"svg\", \"video\", \"audio\"]\n}",
+        "options": {
+          "retry": {
+            "enabled": true,
+            "maxTries": 3,
+            "waitBetweenTries": 5000
+          },
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "fireCrawlApi": "aWVAWEpBNFAfmqFr"
+      }
+    },
+    {
+      "id": "3",
+      "name": "Extract Players Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst scrapedData = items[0].json;\nconst markdownContent = scrapedData.data?.markdown || '';\nconst players = [];\n\n// Look for the Individual Game-by-Game section which has player links\nconst playerLinksMatch = markdownContent.match(/### Individual Game-by-Game[\\s\\S]*?(?=###|$)/i);\nif (playerLinksMatch) {\n  const playerSection = playerLinksMatch[0];\n  \n  // Extract player links in format: | # 1 | [Inigo Chavarria](link) |\n  const playerMatches = playerSection.matchAll(/\\|\\s*(?:#\\s*)?(\\d+)\\s*\\|\\s*\\[([^\\]]+)\\]/g);\n  \n  for (const match of playerMatches) {\n    const jerseyNumber = parseInt(match[1]);\n    const playerName = match[2].trim();\n    \n    if (jerseyNumber && playerName && playerName !== 'TEAM') {\n      players.push({\n        player_id: `Harding-2024-${jerseyNumber}`,\n        school_id: 'Harding',\n        season_id: '2024',\n        jersey_number: jerseyNumber,\n        name: playerName,\n        position: '',\n        is_goalkeeper: jerseyNumber === 1,\n        class_year: null,\n        hometown: null,\n        height: null,\n        weight: null\n      });\n    }\n  }\n}\n\n// If no players found from roster, try to extract from game stats tables\nif (players.length === 0) {\n  console.log('No roster found, attempting to extract from game stats...');\n  \n  const goalScorerMatches = markdownContent.matchAll(/([A-Za-z\\s\\.'-]+?)\\s*\\(((?:un)?assisted|[A-Za-z\\s\\.',-]+?)\\)/g);\n  const uniquePlayers = new Set();\n  \n  for (const match of goalScorerMatches) {\n    const playerName = match[1].trim();\n    if (playerName && playerName !== 'TEAM' && playerName.length > 2) {\n      uniquePlayers.add(playerName);\n    }\n    \n    const assists = match[2];\n    if (assists && assists !== 'unassisted' && assists !== 'assisted') {\n      const assistProviders = assists.split(';').map(p => p.trim());\n      assistProviders.forEach(provider => {\n        if (provider && provider.length > 2) {\n          uniquePlayers.add(provider);\n        }\n      });\n    }\n  }\n  \n  let jerseyCounter = 1;\n  uniquePlayers.forEach(playerName => {\n    players.push({\n      player_id: `Harding-2024-${jerseyCounter}`,\n      school_id: 'Harding',\n      season_id: '2024',\n      jersey_number: jerseyCounter++,\n      name: playerName,\n      position: '',\n      is_goalkeeper: false,\n      class_year: null,\n      hometown: null,\n      height: null,\n      weight: null\n    });\n  });\n}\n\nconsole.log(`Extracted ${players.length} players`);\nreturn players.map(player => ({ json: player }));"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Store Players in Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        840,
+        200
+      ],
+      "parameters": {
+        "tableId": "players",
+        "dataToSend": "autoMapInputData",
+        "operation": "create"
+      },
+      "credentials": {
+        "supabaseApi": "39cZ3bR0Brh8Ili8"
+      }
+    },
+    {
+      "id": "5",
+      "name": "Extract Games Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst scrapedData = items[0].json;\nconst markdownContent = scrapedData.data?.markdown || '';\nconst games = [];\n\n// Parse game results from the markdown content\nconst gameResultsMatch = markdownContent.match(/### Game Results[\\s\\S]*?(?=###|$)/i);\nif (gameResultsMatch) {\n  const gameSection = gameResultsMatch[0];\n  \n  const gameRows = gameSection.split('\\n').filter(line => {\n    const trimmed = line.trim();\n    return /^\\|\\s*\\|\\s*\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}/.test(trimmed);\n  });\n  \n  gameRows.forEach((row, index) => {\n    const columns = row.split('|').map(col => col.trim()).filter(col => col !== '');\n    \n    if (columns.length >= 5) {\n      try {\n        const dateStr = columns[0];  // Fixed: date is in column 0\n        const opponent = columns[1].replace(/^(at\\s+|vs\\s+)/i, '').trim();  // Fixed: opponent is in column 1\n        const scoreMatch = columns[2].match(/\\[(\\d+)-(\\d+)\\]/);  // Fixed: score is in column 2 with [1-3] format\n        \n        if (scoreMatch && dateStr && opponent) {\n          const dateParts = dateStr.split('/');\n          if (dateParts.length === 3) {\n            let year = dateParts[2];\n            if (year.length === 2) year = '20' + year;\n            const formattedDate = `${year}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;\n            \n            const hardingScore = parseInt(scoreMatch[1]);\n            const opponentScore = parseInt(scoreMatch[2]);\n            const isHome = !columns[1].toLowerCase().includes('at ');\n            \n            games.push({\n              game_id: `Harding-2024-${formattedDate}-${opponent.replace(/\\s+/g, '')}`,\n              school_id: 'Harding',\n              season_id: '2024',\n              date: formattedDate,\n              opponent: opponent.toUpperCase(),\n              home_score: isHome ? hardingScore : opponentScore,\n              away_score: isHome ? opponentScore : hardingScore,\n              location: isHome ? 'Home' : 'Away'\n            });\n          }\n        }\n      } catch (error) {\n        console.log('Error parsing game row:', error);\n      }\n    }\n  });\n}\n\nconsole.log(`Extracted ${games.length} games`);\nreturn games.map(game => ({ json: game }));"
+      }
+    },
+    {
+      "id": "7",
+      "name": "Wait for Both Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "mode": "append",
+        "mergeByIndex": false
+      }
+    },
+    {
+      "id": "9",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1000,
+        500
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "error_message",
+              "name": "error_message",
+              "value": "={{ $json.error?.message || 'Firecrawl API temporarily unavailable (502). Please retry in 30 seconds.' }}",
+              "type": "string"
+            },
+            {
+              "id": "error_code",
+              "name": "error_code",
+              "value": "={{ $json.error?.httpCode || '502' }}",
+              "type": "string"
+            },
+            {
+              "id": "retry_suggestion",
+              "name": "retry_suggestion",
+              "value": "API service temporarily down. Wait 30 seconds and retry execution.",
+              "type": "string"
+            },
+            {
+              "id": "timestamp",
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6",
+      "name": "Store Games in Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        840,
+        400
+      ],
+      "parameters": {
+        "tableId": "games",
+        "dataToSend": "autoMapInputData",
+        "operation": "create"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": null,
+          "name": "39cZ3bR0Brh8Ili8"
+        }
+      }
+    },
+    {
+      "id": "8",
+      "name": "Log Extraction Metadata",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        300
+      ],
+      "parameters": {
+        "tableId": "soccer_extraction_log",
+        "operation": "create",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "school",
+              "fieldValue": "Harding"
+            },
+            {
+              "fieldId": "season",
+              "fieldValue": "2024"
+            },
+            {
+              "fieldId": "total_players",
+              "fieldValue": "={{ $node['Extract Players Data'].outputItems.length }}"
+            },
+            {
+              "fieldId": "total_games",
+              "fieldValue": "={{ $node['Extract Games Data'].outputItems.length }}"
+            },
+            {
+              "fieldId": "extraction_successful",
+              "fieldValue": "true"
+            },
+            {
+              "fieldId": "source_name",
+              "fieldValue": "Harding Sports Website"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": null,
+          "name": "39cZ3bR0Brh8Ili8"
+        }
+      }
+    },
+    {
+      "id": "10",
+      "name": "AI Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.manualChatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        180,
+        800
+      ],
+      "parameters": {
+        "options": {
+          "responseMode": "lastNode"
+        }
+      }
+    },
+    {
+      "id": "11",
+      "name": "Soccer Analytics AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        400,
+        800
+      ],
+      "parameters": {
+        "promptType": "auto",
+        "agent": "conversationalAgent",
+        "systemMessage": "You are a soccer analytics expert specializing in Harding University's men's soccer team data. You have access to a database containing player roster information, game results, and statistics.",
+        "hasOutputParser": false
+      }
+    },
+    {
+      "id": "12",
+      "name": "Database Query Tool",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        620,
+        800
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "players",
+        "requestOptions": {
+          "qs": {
+            "select": "*",
+            "order": "created_at.desc"
+          }
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": null,
+          "name": "39cZ3bR0Brh8Ili8"
+        }
+      }
+    },
+    {
+      "id": "13",
+      "name": "Cleanup Existing Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        500
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "https://tgpqzfhechqqkefpzgnl.supabase.co/rest/v1/players?school_id=eq.Harding&season_id=eq.2024",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.supabaseApi.serviceRole }}"
+            },
+            {
+              "name": "apikey",
+              "value": "{{ $credentials.supabaseApi.serviceRole }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": null,
+          "name": "39cZ3bR0Brh8Ili8"
+        }
+      }
+    },
+    {
+      "id": "14",
+      "name": "Cleanup Games Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        500
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "https://tgpqzfhechqqkefpzgnl.supabase.co/rest/v1/games?school_id=eq.Harding&season_id=eq.2024",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.supabaseApi.serviceRole }}"
+            },
+            {
+              "name": "apikey",
+              "value": "{{ $credentials.supabaseApi.serviceRole }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": null,
+          "name": "39cZ3bR0Brh8Ili8"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Existing Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl Scrape": {
+      "main": [
+        [
+          {
+            "node": "Extract Players Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Games Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Players Data": {
+      "main": [
+        [
+          {
+            "node": "Store Players in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Players in Supabase": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Games Data": {
+      "main": [
+        [
+          {
+            "node": "Store Games in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Games in Supabase": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Both Branches": {
+      "main": [
+        [
+          {
+            "node": "Log Extraction Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Soccer Analytics AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Soccer Analytics AI Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Database Query Tool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup Existing Data": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Games Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup Games Data": {
+      "main": [
+        [
+          {
+            "node": "Firecrawl Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "28906e60-6cb0-47af-94e3-ac8b268cf2db",
+  "triggerCount": 0,
+  "shared": [
+    {
+      "createdAt": "2025-07-09T02:34:30.514Z",
+      "updatedAt": "2025-07-09T02:34:30.514Z",
+      "role": "workflow:owner",
+      "workflowId": "QFPEXr7qSMvXmKSr",
+      "projectId": "tfA01WKo4alXbg24",
+      "project": {
+        "createdAt": "2025-07-08T23:43:51.971Z",
+        "updatedAt": "2025-07-08T23:47:27.377Z",
+        "id": "tfA01WKo4alXbg24",
+        "name": "Daniel Scholl <degnome@me.com>",
+        "type": "personal",
+        "icon": null,
+        "projectRelations": [
+          {
+            "createdAt": "2025-07-08T23:43:51.971Z",
+            "updatedAt": "2025-07-08T23:43:51.971Z",
+            "role": "project:personalOwner",
+            "userId": "19eaaf67-73a4-41c1-8af0-731908e772ff",
+            "projectId": "tfA01WKo4alXbg24",
+            "user": {
+              "createdAt": "2025-07-08T23:43:51.749Z",
+              "updatedAt": "2025-07-08T23:47:30.366Z",
+              "id": "19eaaf67-73a4-41c1-8af0-731908e772ff",
+              "email": "degnome@me.com",
+              "firstName": "Daniel",
+              "lastName": "Scholl",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-07-08T23:47:30.340Z",
+                "personalization_survey_n8n_version": "1.97.1"
+              },
+              "settings": {
+                "userActivated": false
+              },
+              "role": "global:owner",
+              "disabled": false,
+              "mfaEnabled": false,
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": []
+}

@@ -92,29 +92,13 @@ The application uses a multi-container Docker setup:
 
 ## Workflow Structure
 
-The project includes specialized workflows for soccer analytics:
+The project includes a specialized workflow for soccer analytics:
 
-### Soccer Statistics Scraper V2 (Current)
-- **File**: `workflow/soccer-v2-fixed.json`
-- **Purpose**: Scrapes Harding University soccer statistics from static HTML pages
-- **Output**: Relational CSV files (games, players, player_stats, etc.)
-- **Architecture**: HTTP requests → HTML parsing → CSV generation
-- **Status**: Production POC with known technical debt
-
-### Soccer Analytics V3 (Next Generation)
-- **File**: `workflow/soccer-v3-architecture-spec.md`
-- **Purpose**: AI-powered soccer data extraction with enterprise database storage
-- **Technology**: Firecrawl + Supabase + n8n
-- **Architecture**: Firecrawl API → Structured JSON → PostgreSQL database
-- **Benefits**: 95% fewer parsing errors, zero maintenance, real-time analytics
-- **Status**: Architecture complete, implementation planned
-
-### V3 Key Improvements
-- **Reliability**: AI-powered extraction vs brittle CSS selectors
-- **Scalability**: PostgreSQL database vs CSV files
-- **Maintainability**: Zero-maintenance scraping adapts to website changes
-- **Performance**: Single API call vs multiple HTTP requests + parsing
-- **Cost**: <$60/month for complete 6-school GAC coverage
+### Soccer Statistics Scraper 
+- **Requirement**: `project/requirement.md`
+- **Design**: `project/design-spec.md`
+- **Schema**: `project/schema.sql`
+- **Workflow**: `project/workflow.json`
 
 ### Workflow Import Process
 1. Access n8n at http://localhost:5678
@@ -137,3 +121,69 @@ Environment variables are stored in `.env` and never committed to version contro
 - n8n configuration: `n8n_data` Docker volume
 - Workflows: Stored in database + file system mapping
 - Use `make clean` only when complete data reset is desired
+
+## n8n Workflow Process
+
+1. **ALWAYS start with**: `tools_documentation()` to understand best practices and available tools.
+
+2. **Discovery Phase** - Find the right nodes:
+   - `search_nodes({query: 'keyword'})` - Search by functionality
+   - `list_nodes({category: 'trigger'})` - Browse by category
+   - `list_ai_tools()` - See AI-capable nodes (remember: ANY node can be an AI tool!)
+
+3. **Configuration Phase** - Get node details efficiently:
+   - `get_node_essentials(nodeType)` - Start here! Only 10-20 essential properties
+   - `search_node_properties(nodeType, 'auth')` - Find specific properties
+   - `get_node_for_task('send_email')` - Get pre-configured templates
+   - `get_node_documentation(nodeType)` - Human-readable docs when needed
+
+4. **Pre-Validation Phase** - Validate BEFORE building:
+   - `validate_node_minimal(nodeType, config)` - Quick required fields check
+   - `validate_node_operation(nodeType, config, profile)` - Full operation-aware validation
+   - Fix any validation errors before proceeding
+
+5. **Building Phase** - Create the workflow:
+   - Use validated configurations from step 4
+   - Connect nodes with proper structure
+   - Add error handling where appropriate
+   - Use expressions like $json, $node["NodeName"].json
+   - Build the workflow in an artifact (unless the user asked to create in n8n instance)
+
+6. **Workflow Validation Phase** - Validate complete workflow:
+   - `validate_workflow(workflow)` - Complete validation including connections
+   - `validate_workflow_connections(workflow)` - Check structure and AI tool connections
+   - `validate_workflow_expressions(workflow)` - Validate all n8n expressions
+   - Fix any issues found before deployment
+
+7. **Deployment Phase** (if n8n API configured):
+   - `n8n_create_workflow(workflow)` - Deploy validated workflow
+   - `n8n_validate_workflow({id: 'workflow-id'})` - Post-deployment validation
+   - `n8n_update_partial_workflow()` - Make incremental updates using diffs
+   - `n8n_trigger_webhook_workflow()` - Test webhook workflows
+
+### Key Insights
+
+- **VALIDATE EARLY AND OFTEN** - Catch errors before they reach production
+- **USE DIFF UPDATES** - Use n8n_update_partial_workflow for 80-90% token savings
+- **ANY node can be an AI tool** - not just those with usableAsTool=true
+- **Pre-validate configurations** - Use validate_node_minimal before building
+- **Post-validate workflows** - Always validate complete workflows before deployment
+- **Incremental updates** - Use diff operations for existing workflows
+- **Test thoroughly** - Validate both locally and after deployment to n8n
+
+### Validation Strategy
+
+#### Before Building:
+1. validate_node_minimal() - Check required fields
+2. validate_node_operation() - Full configuration validation
+3. Fix all errors before proceeding
+
+#### After Building:
+1. validate_workflow() - Complete workflow validation
+2. validate_workflow_connections() - Structure validation
+3. validate_workflow_expressions() - Expression syntax check
+
+#### After Deployment:
+1. n8n_validate_workflow({id}) - Validate deployed workflow
+2. n8n_list_executions() - Monitor execution status
+3. n8n_update_partial_workflow() - Fix issues using diffs
