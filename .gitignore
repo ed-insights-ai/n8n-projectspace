@@ -2,9 +2,9 @@
 .env
 .env.local
 .env.*.local
+.mcp.json
 
 # Backup files
-*.sql
 *.backup
 *.bak
 
